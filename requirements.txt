@@ -6,3 +6,7 @@ numpy
 pandas
 scikit-learn
 torchmetrics
+x-transformers
+einops
+librosa
+matplotlib
