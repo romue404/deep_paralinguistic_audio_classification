@@ -1,0 +1,18 @@
+program: main.py
+method: bayes
+metric:
+  name: mic_f1
+  goal: minimize
+parameters:
+  lr:
+    min: 0.0001
+    max: 0.1
+  weight_decay:
+    min: 0.0001
+    max: 0.1
+  dropout:
+    min: 0.01
+    max: 0.8
+  mask_prob:
+    min: 0.01
+    max: 0.8
