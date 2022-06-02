@@ -10,17 +10,17 @@ class RawDataset:
         self.specs_path = Path.joinpath(self.dir, "melspecs")
         self.labels_path = Path.joinpath(self.dir, "lab", "labels.csv")
 
+        if not self.specs_path.exists():
+            raise Exception(
+                "Melspectogams not found! You can create them with the preprocessing script."
+            )
+
         (
             self.full_csv,
             self.classes,
             self.name2class,
             self.class2name,
         ) = self.all_labels_csv(Path.joinpath(self.dir, "lab"), test_available=False)
-
-        if not self.specs_path.exists():
-            raise Exception(
-                "Melspectogams not found! You can create them with the preprocessing script."
-            )
 
     def all_labels_csv(
         self,
