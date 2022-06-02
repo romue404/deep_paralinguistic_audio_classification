@@ -129,3 +129,6 @@ dmypy.json
 .pyre/
 datasets/
 .DS_Store
+wandb/
+compare-22/
+outputs/
