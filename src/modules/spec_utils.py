@@ -176,8 +176,9 @@ class SpecMixup(nn.Module):
 
 
 class SpecDrloc(nn.Module):
-    def __init__(self, n_freq_patches, n_time_patches, dim, mlp_dim=256, m=16):
+    def __init__(self, n_freq_patches, n_time_patches, dim, m=16):
         super(SpecDrloc, self).__init__()
+        mlp_dim = int(0.75 * dim)
         self.mlp = nn.Sequential(
             nn.Linear(2 * dim, mlp_dim),
             nn.GELU(),

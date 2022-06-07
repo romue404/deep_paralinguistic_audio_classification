@@ -1,29 +1,30 @@
 import torch
 import torch.nn as nn
 import random
+
+import x_transformers
 from x_transformers.x_transformers import (
     exists,
     LayerIntermediates,
     Encoder,
     ContinuousTransformerWrapper,
+    FixedPositionalEmbedding
 )
-from modules.patchmerger import FrequencyPatchMerger
-from modules.spec_pos_emb import PatchyfiedSpecPosEmbs
-from modules.attention import AttnFn
+from src.modules.spec_pos_emb import PatchyfiedSpecPosEmbs
+from src.modules.attention import AttnFn
 from torch.nn.utils.rnn import pad_sequence
 
 
 class MyEncoder(Encoder):
-    def __init__(self, f_patchmerger=nn.Identity(), **kwargs):
+    def __init__(self, use_attn_hack, **kwargs):
         super().__init__(**kwargs)
-        self.f_patchmerger = f_patchmerger
-
-        for ll in self.layers:
-            for l in ll:
-                try:
-                    l.fn.attn_fn = AttnFn()
-                except AttributeError as e:
-                    pass
+        if use_attn_hack:
+            for ll in self.layers:
+                for l in ll:
+                    try:
+                        l.fn.attn_fn = AttnFn()
+                    except AttributeError as e:
+                        pass
 
     def forward(
         self,
@@ -61,12 +62,6 @@ class MyEncoder(Encoder):
             if layer_type == "a":
                 hiddens.append(x)
                 layer_mem = mems.pop(0) if mems else None
-
-            if (ind == int(0.5 * self.num_attn_layers)) and isinstance(
-                self.f_patchmerger, FrequencyPatchMerger
-            ):
-
-                x, mask = self.f_patchmerger(x, mask)
 
             residual = x
 
@@ -124,13 +119,15 @@ class MyEncoder(Encoder):
 
 
 class MySpecTf(ContinuousTransformerWrapper):
-    def __init__(self, *args, num_freq_patches, **kwargs):
+    def __init__(self, *args, num_freq_patches, use_spec_pos_emb, **kwargs):
         super().__init__(*args, **kwargs)
         dim = self.attn_layers.dim
+        self.use_spec_pos_emb = use_spec_pos_emb
         self.num_freq_patches = num_freq_patches
         self.mask_token = nn.Parameter(torch.randn(1, dim))
         self.clf_tokens = nn.Parameter(torch.randn(1, dim))
-        self.pos_emb = PatchyfiedSpecPosEmbs(num_freq_patches, dim)
+        self.pos_emb = PatchyfiedSpecPosEmbs(num_freq_patches, dim) \
+            if use_spec_pos_emb else FixedPositionalEmbedding(dim)
 
     def cat_clf_token(self, x):
         return torch.cat((self.clf_tokens.expand(x.shape[0], -1, -1), x), 1)

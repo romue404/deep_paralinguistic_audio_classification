@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from modules.patchmerger import PatchMerger
+from src.modules.patchmerger import PatchMerger
 
 
 class HPMLP(nn.Module):
@@ -14,25 +14,30 @@ class HPMLP(nn.Module):
             nn.Dropout(dropout),
         )
 
+    @property
+    def out_features(self):
+        return self.net[-2].out_features
+
     def forward(self, x):
         return self.net(x)
 
 
 class HybridPooler(nn.Module):
-    def __init__(self, hidden_size, dropout=0.2, f_patchmerger=-1):
+    def __init__(self, hidden_size, num_patchmerges, dropout, how):
         super(HybridPooler, self).__init__()
+        assert how in ['both', 'fixed', 'learned']
+        self.how = how
         self.hidden_size = hidden_size
-        self.f_patchmerger = f_patchmerger
-        self.pmp = PatchMerger(self.hidden_size, 2)
-        self.mlp1 = HPMLP(3 * self.hidden_size, self.hidden_size, dropout)
-        self.mlp2 = HPMLP(3 * self.hidden_size, self.hidden_size, dropout)
+        self.num_patchmerges = num_patchmerges
+        self.pmp = PatchMerger(self.hidden_size, num_patchmerges)
+        self.mlp1 = HPMLP(3 * self.hidden_size, self.hidden_size, dropout) \
+            if how in ['both', 'fixed'] else nn.Identity()
+        self.mlp2 = HPMLP((1 + num_patchmerges) * self.hidden_size, self.hidden_size, dropout) \
+            if how in ['both', 'learned'] else nn.Identity()
 
-    def forward(self, tokens, lengths):
+    def fixed_path(self, tokens, lengths):
         tokens, clf_pooled = tokens[:, 1:], tokens[:, 0]
         # tokens = torch.fft.fft2(tokens, dim=(-1, -2)).real
-        if self.f_patchmerger > 0:
-            lengths = (lengths / self.f_patchmerger).long()
-
         mean_pooled = torch.cat(
             [torch.mean(i[0:l], dim=0).view(1, -1) for i, l in zip(tokens, lengths)],
             dim=0,
@@ -45,12 +50,30 @@ class HybridPooler(nn.Module):
             [torch.min(i[0:l], dim=0)[0].view(1, -1) for i, l in zip(tokens, lengths)],
             dim=0,
         )
-        pmp_pooled = self.pmp(tokens, lengths)
-
         pooled_traditional = torch.cat([mean_pooled, max_pooled, min_pooled], -1)
-        pooled_learned = torch.cat([pmp_pooled.flatten(1), clf_pooled], dim=-1)
+        return self.mlp1(pooled_traditional)
 
-        pooled = torch.cat(
-            [self.mlp1(pooled_traditional), self.mlp2(pooled_learned)], -1
-        )
-        return pooled
+    def learned_path(self, tokens, lengths):
+        tokens, clf_pooled = tokens[:, 1:], tokens[:, 0]
+        pmp_pooled = self.pmp(tokens, lengths)
+        pooled_learned = torch.cat([pmp_pooled.flatten(1), clf_pooled], dim=-1)
+        return self.mlp2(pooled_learned)
+
+    def forward(self, tokens, lengths):
+        pooled_traditional = self.fixed_path(tokens, lengths)
+        pooled_learned = self.learned_path(tokens, lengths)
+        if self.how == 'learned':
+            return pooled_learned
+        elif self.how == 'fixed':
+            return pooled_traditional
+        return torch.cat([pooled_traditional, pooled_learned], -1)
+
+    @property
+    def out_features(self):
+        d = 0
+        for mlp in [self.mlp1, self.mlp2]:
+            try:
+                d += mlp.out_features
+            except AttributeError:
+                pass
+        return d

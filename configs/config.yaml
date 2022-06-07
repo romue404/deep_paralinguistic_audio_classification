@@ -1,19 +1,40 @@
 model:
-  lr: 0.0003
-  weight_decay: 0.0001
+  patch_h: 32
+  patch_w: 4
+  v_stride: 16
+  h_stride: 2
+  use_spec_pos_emb: True
+  lr: 0.0005
+  weight_decay: 0.05
   hidden_size: 128
   num_layers: 10
   num_heads: 4
-  ff_mult: 3
-  mask_prob: 0.2
-  dropout: 0.2
+  ff_mult: 4
+  use_attn_hack: True
+  mask_prob: 0.1
+  emb_dropout: 0.1
+  attn_dropout: 0.1
+  ff_dropout: 0.1
+  freq_mask_param: 4
   label_smoothing: 0.0
   num_mem_kv: 32
-  num_warmup_epochs: 30
-  f_patchmerger: False
+  num_warmup_epochs: 15
+  prob_crop: 0.75
+  crop_scale: 0.25
+  mixup_alpha: 0.3
+  drloc_alpha: 0.5
+  drloc_m: 16
+  drloc_time_patches: 150
+  use_normalized_linear: True
+  num_patchmerges: 2
+  pooling_type: "both"
+  norm: "rezero"
+  ff: "relu_squared"
+
 run:
   seed: 1337
-  max_epochs: 750
+  max_epochs: 300
+
 dataset:
-  dir: "./datasets/compare22-VOC-C"
+  dir: "/mnt/robert/datasets/compare22-VOC-C"
   sr: 16000

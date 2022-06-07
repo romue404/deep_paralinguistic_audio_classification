@@ -1,9 +1,10 @@
 from typing import Union, List, Optional
+import math
 import torch
 import pytorch_lightning as pl
 from torch.utils.data import ConcatDataset, DataLoader
 from pathlib import Path
-from modules.spec_utils import MelSpec
+from src.modules.spec_utils import MelSpec
 from torch.nn.utils.rnn import pack_padded_sequence
 
 
@@ -51,7 +52,7 @@ class SimpleSpectrogramDataModule(pl.LightningDataModule):
             num_workers=self.num_workers,
             shuffle=True,
             pin_memory=True,
-            collate_fn=collate_variable_len_sequence,
+            collate_fn=collate_variable_len_sequence_repeat,
             batch_size=self.batch_size,
             **kwargs,
         )
@@ -62,7 +63,7 @@ class SimpleSpectrogramDataModule(pl.LightningDataModule):
             *args,
             shuffle=False,
             num_workers=self.num_workers,
-            collate_fn=collate_variable_len_sequence,
+            collate_fn=collate_variable_len_sequence_repeat,
             batch_size=self.batch_size,
             **kwargs,
         )
@@ -73,7 +74,7 @@ class SimpleSpectrogramDataModule(pl.LightningDataModule):
             *args,
             shuffle=False,
             num_workers=self.num_workers,
-            collate_fn=collate_variable_len_sequence,
+            collate_fn=collate_variable_len_sequence_repeat,
             batch_size=self.batch_size,
             **kwargs,
         )
@@ -129,5 +130,18 @@ def collate_variable_len_sequence(batch):
     mels = mels.permute(
         0, 2, 1
     )  # 'batch token_size num_tokens -> batch num_tokens token_size'
+    packed = pack_padded_sequence(mels, lengths, batch_first=True, enforce_sorted=False)
+    return packed, labels, names
+
+
+def collate_variable_len_sequence_repeat(batch):
+    labels    = torch.tensor([l for _, l,_ in batch]).long()
+    mels      = [m for m, _,_ in batch]
+    names      = [name for _, _, name in batch]
+    lengths   = torch.tensor([m.shape[-1] for m in mels]).long()
+    mels = torch.stack([torch.cat([mel]*math.ceil(max(lengths)/mel.shape[-1]), -1)[:, :max(lengths)]
+                        if mel.shape[-1] != max(lengths) else mel for mel in mels], 0)
+    # expected by pack padded sequence
+    mels = mels.permute(0, 2, 1)  # 'batch token_size num_tokens -> batch num_tokens token_size'
     packed = pack_padded_sequence(mels, lengths, batch_first=True, enforce_sorted=False)
     return packed, labels, names

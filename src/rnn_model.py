@@ -12,7 +12,6 @@ from modules.transformer import (
     MySpecTfMsmEncoder,
     MySpecTfMsmDecoder,
 )
-from modules.patchmerger import FrequencyPatchMerger
 from modules.spec_utils import SpecMixup, SpecDrloc
 from utils import NormalizedLinear, exclude_from_wt_decay
 
@@ -21,20 +20,26 @@ class MySpecTFMR(pl.LightningModule):
     def __init__(
         self,
         num_freq_patches,
+        use_spec_pos_emb=True,
         mode="msm",
         lr=3e-4,
-        weight_decay=1e-4,
+        weight_decay=1e-3,
+        num_warmup_epochs=10,
         num_layers=8,
         num_heads=4,
-        dropout=0.2,
+        use_attn_hack=True,
+        emb_dropout=0.1,
+        attn_dropout=0.1,
+        ff_dropout=0.1,
+        mask_prob=0.2,
         input_dim=128,
         hidden_size=256,
-        mask_prob=0.2,
         label_smoothing=0.1,
         num_mem_kv=32,
-        f_patchmerger=False,
         ff_mult=4,
-        num_warmup_epochs=10,
+        norm='rezero',
+        ff='relu_squared',
+        **kwargs  # ignore rest
     ):
         super(MySpecTFMR, self).__init__()
         self.mode = mode
@@ -42,42 +47,46 @@ class MySpecTFMR(pl.LightningModule):
         self.hidden_size = hidden_size
         self.num_freq_patches = num_freq_patches
         self.label_smoothing = label_smoothing
-        self.f_patchmerger = f_patchmerger
         self.input_dim = input_dim
 
         self.lr = lr
         self.num_warmup_epochs = num_warmup_epochs
         self.num_layers = num_layers
-        self.dropout = dropout
+        self.ff_dropout = ff_dropout
         self.__mask_prob = mask_prob
 
-        fpm = (
-            FrequencyPatchMerger(num_freq_patches, hidden_size)
-            if f_patchmerger
-            else nn.Identity()
-        )
+
+        ff_dict = {'relu_squared': {'ff_relu_squared': True},
+                   'gated_glu':          {'ff_swish': True, 'ff_glu': True},
+                   'glu': {}
+                   }
+        norm_dict = {'scalenorm': {'use_scalenorm': True},
+                     'rmsnorm'  : {'use_rmsnorm':   True},
+                     'rezero'   : {'use_rezero':    True},
+                     'layernorm': {}
+                     }
 
         Wrapper = MySpecTfMsmEncoder if mode == "msm" else MySpecTf
-
         self.transformer = Wrapper(
+            use_spec_pos_emb=use_spec_pos_emb,
             dim_in=input_dim,
             dim_out=None,
             max_seq_len=1024,
-            emb_dropout=dropout,
+            emb_dropout=emb_dropout,
             num_freq_patches=num_freq_patches,
             attn_layers=MyEncoder(
+                use_attn_hack=use_attn_hack,
                 dim_head=128,
+                ff_mult=ff_mult,
                 dim=self.hidden_size,
                 depth=self.num_layers,
                 heads=num_heads,
-                attn_dropout=dropout,
+                attn_dropout=attn_dropout,
                 attn_num_mem_kv=num_mem_kv,
-                ff_dropout=dropout,
-                ff_relu_squared=True,
-                use_rezero=True,
+                ff_dropout=ff_dropout,
+                **ff_dict[ff],
+                **norm_dict[norm],
                 # shift_tokens=1,
-                ff_mult=ff_mult,
-                f_patchmerger=fpm,
             ),
         )
 
@@ -86,18 +95,17 @@ class MySpecTFMR(pl.LightningModule):
                 dim_in=input_dim,
                 dim_out=input_dim,
                 max_seq_len=1024,
-                emb_dropout=0.0,
+                emb_dropout=emb_dropout,
+                ff_mult=ff_mult,
                 num_freq_patches=num_freq_patches,
                 attn_layers=MyEncoder(
                     dim=self.hidden_size,
                     depth=self.num_layers // 2,
                     heads=num_heads,
-                    attn_dropout=0.1,
-                    ff_dropout=0.1,
-                    ff_glu=True,
-                    ff_swish=True,
-                    use_rmsnorm=True,
-                    ff_mult=ff_mult,
+                    attn_dropout=attn_dropout,
+                    ff_dropout=num_mem_kv,
+                    **ff_dict[ff],
+                    **norm_dict[norm],
                 ),
             )
             if mode == "msm"
@@ -165,7 +173,9 @@ class MySpecTFMR(pl.LightningModule):
 
 
 class ClassificationTFMR(MySpecTFMR):
-    def __init__(self, *args, num_classes, **kwargs):
+    def __init__(self, *args, num_classes, drloc_time_patches,
+                 use_normalized_linear, pooling_type,
+                 num_patchmerges, drloc_m, drloc_alpha=0.1, mixup_alpha, **kwargs):
         super(ClassificationTFMR, self).__init__(*args, mode="clf", **kwargs)
         self.micro_f1 = metrics.classification.f_beta.F1Score(
             compute_on_step=False,
@@ -187,23 +197,28 @@ class ClassificationTFMR(MySpecTFMR):
         )
         self.best_uar = 0, 0
         self.num_classes = num_classes
+        self.drloc_alpha = drloc_alpha
 
         self.pooler = HybridPooler(
             self.hidden_size,
-            self.dropout,
-            self.num_freq_patches if self.f_patchmerger else -1,
+            num_patchmerges,
+            self.ff_dropout,
+            how=pooling_type
         )
-        self.clf = NormalizedLinear(2 * self.hidden_size, self.num_classes)
+        of = self.pooler.out_features
+        self.clf = NormalizedLinear(of, self.num_classes) if use_normalized_linear \
+            else nn.Linear(of, self.num_classes, bias=False)
         self.criterion = nn.CrossEntropyLoss(
             label_smoothing=self.label_smoothing
-        )  # PolyLoss(epsilon=-.5)
+        )
 
-        self.mixup = SpecMixup(num_classes=self.num_classes, alpha=0.3)
-        self.drloc = SpecDrloc(self.num_freq_patches, 100, self.hidden_size, m=16)
+        self.mixup_alpha = mixup_alpha
+        self.mixup = SpecMixup(num_classes=self.num_classes, alpha=mixup_alpha)
+        self.drloc = SpecDrloc(self.num_freq_patches, drloc_time_patches, m=drloc_m, dim=self.hidden_size)
 
     def forward(self, data, labels):
         x_pad, lengths = pad_packed_sequence(data, batch_first=True)
-        if self.training:
+        if self.training and self.mixup_alpha > 0.0:
             x_pad, labels = self.mixup(x_pad, labels)
         tokens = self.transformer(x_pad, lengths=lengths, mask_prob=self.mask_prob)
         return self.pooler(tokens, lengths), labels, tokens, lengths
@@ -214,7 +229,7 @@ class ClassificationTFMR(MySpecTFMR):
         logits = self.clf(pooled)
         loss = self.criterion(logits, labels)
         ssl_loss = self.drloc(tokens[:, 1:], lengths)
-        loss = loss + 1 * ssl_loss
+        loss = loss + self.drloc_alpha * ssl_loss
 
         self.log("loss", loss, on_step=False, on_epoch=True, batch_size=len(batch))
         return loss

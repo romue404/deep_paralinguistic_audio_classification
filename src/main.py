@@ -22,14 +22,20 @@ def train(cfg: RootConfig):
 
     ds = RawDataset(cfg.dataset.dir, cfg.dataset.sr)
 
-    patch_h, patch_w, v_stride, h_stride = 32, 4, 16, 2
-    num_classes = len(ds.classes) - 1  # remove ? label drom testset
+    num_classes = len(ds.classes) - 1  # remove ? label from testset TODO remove -1 when training on primates!!!
     config_defaults = dict(**cfg.model)
 
     wandb_logger = WandbLogger(
         entity="mdsg", project="compare-22", config=config_defaults, log_model=True
     )
+
+    # use config ant NOT cfg - cfg is only for defaults!
     config = wandb.config
+    print(config)
+    patchify = PatchifySpectrogram(config.patch_h,
+                                   config.patch_w,
+                                   config.v_stride,
+                                   config.h_stride)
 
     train_tfms = Compose(
         [
@@ -37,21 +43,21 @@ def train(cfg: RootConfig):
             RandomApply(
                 [
                     RandomResizeCrop(
-                        virtual_crop_scale=(1.0, 1.25),
-                        freq_scale=(0.75, 1.25),
-                        time_scale=(0.75, 1.25),
+                        virtual_crop_scale=(1.0, 1.0 + config.crop_scale),
+                        freq_scale=(1.0 - config.crop_scale, 1.0 + config.crop_scale),
+                        time_scale=(1.0 - config.crop_scale, 1.0 + config.crop_scale),
                     )
                 ],
-                0.75,
+                config.prob_crop,
             ),
-            FrequencyMasking(freq_mask_param=8),
-            PatchifySpectrogram(patch_h, patch_w, v_stride, h_stride),
+            FrequencyMasking(freq_mask_param=config.freq_mask_param),
+            patchify,
         ]
     )
     test_tfms = Compose(
         [
             NormalizeSpectrogram(),
-            PatchifySpectrogram(patch_h, patch_w, v_stride, h_stride),
+            patchify
         ]
     )
 
@@ -66,10 +72,11 @@ def train(cfg: RootConfig):
     )
 
     data_module.setup()
+
     model = ClassificationTFMR(
         num_classes=num_classes,
-        input_dim=patch_h * patch_w,
-        num_freq_patches=int(((128 - patch_h) / v_stride) + 1),
+        input_dim=config.patch_h * config.patch_w,
+        num_freq_patches=int(((128 - config.patch_h) / config.v_stride) + 1),
         **config,
     )
 
@@ -78,7 +85,7 @@ def train(cfg: RootConfig):
         auto_select_gpus=True,
         max_epochs=cfg.run.max_epochs,
         logger=wandb_logger,
-        check_val_every_n_epoch=1,
+        check_val_every_n_epoch=5,
         log_every_n_steps=1,
     )
 

@@ -6,7 +6,7 @@ from x_transformers.x_transformers import Attention
 class AttnFn(nn.Module):
     def __init__(self):
         super(AttnFn, self).__init__()
-        # self.scale = nn.Parameter(torch.tensor([1.]))
+        self.scale = nn.Parameter(torch.tensor([1.]))
 
     def forward(self, dots, dim=-1):
         r, c = dots.shape[-2], dots.shape[-1]
@@ -17,7 +17,7 @@ class AttnFn(nn.Module):
         i, j = torch.arange(r - 1, -1, -1), torch.arange(c - 1, num_mem_k - 1, -1)
         mask[i, j] = 1
 
-        dots = dots  # * self.scale
+        dots = dots * self.scale
 
         dots = dots.masked_fill(mask.bool(), mask_value)
 

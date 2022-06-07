@@ -1,11 +1,6 @@
 import math
 import torch
 import torch.nn as nn
-from x_transformers.x_transformers import (
-    FixedPositionalEmbedding,
-    AbsolutePositionalEmbedding,
-)
-
 
 class PatchyfiedSpecPosEmbs(nn.Module):
     def __init__(self, n_freq_patches, dim):
