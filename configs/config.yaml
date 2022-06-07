@@ -15,7 +15,7 @@ model:
   emb_dropout: 0.1
   attn_dropout: 0.1
   ff_dropout: 0.1
-  freq_mask_param: 4
+  freq_mask_param: 8
   label_smoothing: 0.0
   num_mem_kv: 32
   prob_crop: 0.75
@@ -35,5 +35,5 @@ run:
   max_epochs: 300
 
 dataset:
-  dir: "/mnt/robert/datasets/compare22-VOC-C"
+  dir: "./datasets/compare22-VOC-C"
   sr: 16000
