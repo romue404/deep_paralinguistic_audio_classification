@@ -26,9 +26,10 @@ def train(cfg: RootConfig):
     config_defaults = dict(**cfg.model)
 
     wandb_logger = WandbLogger(
-        entity="mdsg", project="compare-22", config=config_defaults, log_model=False
+        entity="mdsg", project="test-compare-22", config=config_defaults, log_model=False
     )
 
+    wandb.define_metric("uar", summary="max")
     # use config ant NOT cfg - cfg is only for defaults!
     config = wandb.config
 
