@@ -6,12 +6,11 @@ from modules.patchmerger import FrequencyPatchMerger
 from modules.spec_pos_emb import PatchyfiedSpecPosEmbs
 from modules.attention import AttnFn
 from torch.nn.utils.rnn import pad_sequence
-
+from vector_quantize_pytorch import VectorQuantize, ResidualVQ
 
 class MyEncoder(Encoder):
     def __init__(self, f_patchmerger=nn.Identity(), **kwargs):
         super().__init__(**kwargs)
-        self.f_patchmerger = f_patchmerger
 
         for ll in self.layers:
             for l in ll:
@@ -51,9 +50,8 @@ class MyEncoder(Encoder):
                 hiddens.append(x)
                 layer_mem = mems.pop(0) if mems else None
 
-            if (ind == int(0.5*self.num_attn_layers)) and isinstance(self.f_patchmerger, FrequencyPatchMerger):
-
-                x, mask = self.f_patchmerger(x, mask)
+            #if (ind == int(0.5*self.num_attn_layers)):
+            #    x, indices, commit_loss = self.vq(x)  # quantize it
 
             residual = x
 
@@ -104,11 +102,15 @@ class MySpecTf(ContinuousTransformerWrapper):
         *args,  num_freq_patches, **kwargs
     ):
         super().__init__(*args, **kwargs)
-        dim = self.attn_layers.dim
+        self.dim = dim = self.attn_layers.dim
         self.num_freq_patches = num_freq_patches
         self.mask_token = nn.Parameter(torch.randn(1, dim))
         self.clf_tokens = nn.Parameter(torch.randn(1, dim))
         self.pos_emb = PatchyfiedSpecPosEmbs(num_freq_patches, dim)
+
+        self.vq = VectorQuantize(dim=self.dim, codebook_size=512, codebook_dim=16, decay=0.9, heads=2)
+        self.l = nn.Linear(self.dim, self.dim)
+
 
     def cat_clf_token(self, x):
         return torch.cat((self.clf_tokens.expand(x.shape[0], -1, -1), x), 1)
@@ -143,6 +145,8 @@ class MySpecTf(ContinuousTransformerWrapper):
         spec_pos_emb = self.pos_emb(data)
         x = self.project_in(data)
 
+
+
         mask_token = None
         if mask_prob > 0 and self.training:
             mask_idxs = self.random_masking(lengths, mask_prob)
@@ -157,6 +161,7 @@ class MySpecTf(ContinuousTransformerWrapper):
                                             mems=mems, return_hiddens=True, **kwargs)
         x = self.norm(x)
 
+        x = self.l(self.vq(x)[0])
         out = self.project_out(x) if not return_embeddings else x
 
         if return_attn:
@@ -173,6 +178,10 @@ class MySpecTf(ContinuousTransformerWrapper):
 class MySpecTfMsmEncoder(MySpecTf):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.vq = VectorQuantize(dim=self.dim, codebook_size=256, codebook_dim=32, decay=0.9,
+                                 use_cosine_sim=True, heads=4, threshold_ema_dead_code=2)
+        self.l = nn.Linear(self.dim, self.dim)
+
 
     def forward(
         self,
@@ -186,7 +195,7 @@ class MySpecTfMsmEncoder(MySpecTf):
     ):
         b, n, d, device = *data.shape, data.device
 
-        spec_pos_emb = self.pos_emb(data).expand(b, -1, -1).reshape(-1, d)  # flatten pos embs
+        spec_pos_emb = self.pos_emb(data).expand(b, -1, -1).reshape(-1, self.dim)  # flatten pos embs
         keep_idxs    = self.random_masking(lengths, 1. - mask_prob)  # idxs of kept tokens
         num_kept     = torch.tensor([len(i) for i in keep_idxs])  # new lens
         keep_idxs    = torch.tensor(sum(keep_idxs, [])).squeeze().to(lengths.device)  # flatten idxs of kept tokens
@@ -205,6 +214,7 @@ class MySpecTfMsmEncoder(MySpecTf):
         x, intermediates = self.attn_layers(sequences, mask=self.make_mask(num_kept, False).to(device),
                                             mems=mems, return_hiddens=True, **kwargs)
         x = self.norm(x)
+        x = self.l(self.vq(x)[0])
         out = self.project_out(x) if not return_embeddings else x
 
         if return_attn:
@@ -212,7 +222,7 @@ class MySpecTfMsmEncoder(MySpecTf):
             return out, attn_maps
 
         kept_mask = self.make_mask(num_kept, False).flatten().nonzero().squeeze()  # indices of embeddings only
-        out = out.view(-1, d)[kept_mask]  # select embeddings
+        out = out.view(-1, self.dim)[kept_mask]  # select embeddings
         return out, keep_idxs, num_kept
 
 

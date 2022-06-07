@@ -6,6 +6,7 @@ from torch.nn.utils.rnn import pack_padded_sequence
 from pathlib import Path
 import numpy as np
 from modules.spec_utils import MelSpec
+import math
 
 
 def collate_variable_len_sequence(batch):
@@ -16,6 +17,19 @@ def collate_variable_len_sequence(batch):
     zero_column = torch.zeros_like(mels[0].select(-1, 0)).unsqueeze(-1)
     mels = torch.stack([torch.cat(([mel] + [zero_column]*(max(lengths) - mel.shape[-1])), -1)
                          if mel.shape[-1] != max(lengths) else mel for mel in mels], 0).float().squeeze()
+    # expected by pack padded sequence
+    mels = mels.permute(0, 2, 1)  # 'batch token_size num_tokens -> batch num_tokens token_size'
+    packed = pack_padded_sequence(mels, lengths, batch_first=True, enforce_sorted=False)
+    return packed, labels, names
+
+
+def collate_variable_len_sequence_repeat(batch):
+    labels    = torch.tensor([l for _, l,_ in batch]).long()
+    mels      = [m for m, _,_ in batch]
+    names      = [name for _, _, name in batch]
+    lengths   = torch.tensor([m.shape[-1] for m in mels]).long()
+    mels = torch.stack([torch.cat([mel]*math.ceil(max(lengths)/mel.shape[-1]), -1)[:, :max(lengths)]
+                        if mel.shape[-1] != max(lengths) else mel for mel in mels], 0)
     # expected by pack padded sequence
     mels = mels.permute(0, 2, 1)  # 'batch token_size num_tokens -> batch num_tokens token_size'
     packed = pack_padded_sequence(mels, lengths, batch_first=True, enforce_sorted=False)
@@ -51,18 +65,18 @@ class SimpleSpectrogramDataModule(pl.LightningDataModule):
 
     def train_dataloader(self, *args, **kwargs) -> DataLoader:
         return DataLoader(self.datasets['train'], *args, num_workers=self.num_workers,
-                          shuffle=True, pin_memory=True, collate_fn=collate_variable_len_sequence,
+                          shuffle=True, pin_memory=True, collate_fn=collate_variable_len_sequence_repeat,
                           batch_size=self.batch_size, **kwargs)
 
     def val_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
         return DataLoader(self.datasets['devel'], *args, shuffle=False,
                           num_workers=self.num_workers,
-                          collate_fn=collate_variable_len_sequence, batch_size=self.batch_size, **kwargs)
+                          collate_fn=collate_variable_len_sequence_repeat, batch_size=self.batch_size, **kwargs)
 
     def test_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
         return DataLoader(self.datasets['test'], *args, shuffle=False,
                           num_workers=self.num_workers,
-                          collate_fn=collate_variable_len_sequence, batch_size=self.batch_size, **kwargs)
+                          collate_fn=collate_variable_len_sequence_repeat, batch_size=self.batch_size, **kwargs)
 
 
 class BalancedSimpleSpectrogramDataModule(SimpleSpectrogramDataModule):

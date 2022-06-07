@@ -10,7 +10,7 @@ class NormalizedLinear(nn.Linear):
         super(NormalizedLinear, self).__init__(in_features, out_features, False, device, dtype)
         self.d_sqrt = in_features**0.5
         self.trainable_magnitude = trainable_magnitude
-        self.scale = nn.Parameter(torch.tensor([.5]), requires_grad=trainable_magnitude)
+        self.scale = nn.Parameter(torch.tensor([1.0]), requires_grad=trainable_magnitude)
 
     def forward(self, input):
         normalized_input = F.normalize(input, dim=-1, p=2, eps=1e-5)

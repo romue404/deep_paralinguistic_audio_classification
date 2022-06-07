@@ -55,20 +55,20 @@ class MySpecTFMR(pl.LightningModule):
                 ff_dropout=dropout,
                 ff_relu_squared=True,
                 use_rezero=True,
-                #shift_tokens=1,
+                shift_tokens=1,
                 ff_mult=ff_mult,
                 f_patchmerger=fpm
             ))
 
         self.decoder = MySpecTfMsmDecoder(
-            dim_in=input_dim,
+            dim_in=hidden_size,
             dim_out=input_dim,
             max_seq_len=1024,
             emb_dropout=0.0,
             num_freq_patches=num_freq_patches,
             attn_layers=MyEncoder(
                 dim=self.hidden_size,
-                depth=self.num_layers // 2,
+                depth=self.num_layers // 3,
                 heads=num_heads,
                 attn_dropout=.1,
                 ff_dropout=.1,
@@ -130,14 +130,14 @@ class ClassificationTFMR(MySpecTFMR):
         self.macro_f1  =  metrics.classification.f_beta.F1Score(compute_on_step=False, num_classes=num_classes, average='macro')
         self.uar       =  metrics.Recall(compute_on_step=False,  num_classes=num_classes, average='macro')
         self.confusion =  metrics.ConfusionMatrix(num_classes=num_classes, compute_on_step=False)
-        self.best_uar = 0, 0
         self.num_classes = num_classes
+        self.best_uar = 0, 0
 
         self.pooler = HybridPooler(self.hidden_size, self.dropout, self.num_freq_patches if self.f_patchmerger else -1)
         self.clf = NormalizedLinear(2*self.hidden_size, self.num_classes)
-        self.criterion = nn.CrossEntropyLoss(label_smoothing=self.label_smoothing)  # PolyLoss(epsilon=-.5)
+        self.criterion = nn.CrossEntropyLoss(label_smoothing=self.label_smoothing)
 
-        self.mixup = SpecMixup(num_classes=self.num_classes, alpha=0.3)
+        self.mixup = SpecMixup(num_classes=self.num_classes, alpha=0.25)
         self.drloc = SpecDrloc(self.num_freq_patches, 100, self.hidden_size, m=16)
 
     def forward(self, data, labels):
@@ -153,7 +153,7 @@ class ClassificationTFMR(MySpecTFMR):
         logits = self.clf(pooled)
         loss = self.criterion(logits, labels)
         ssl_loss = self.drloc(tokens[:, 1:], lengths)
-        loss = loss + 1*ssl_loss
+        loss = loss + .5*ssl_loss
         return loss
 
     def validation_step(self, batch, *args, **kwargs):

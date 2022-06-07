@@ -4,7 +4,7 @@ from modules.patchmerger import PatchMerger
 
 
 class HPMLP(nn.Module):
-    def __init__(self, in_dim, hidden_dim,dropout):
+    def __init__(self, in_dim, hidden_dim, dropout):
         super(HPMLP, self).__init__()
         self.net = nn.Sequential(
             nn.Linear(in_dim, hidden_dim),
