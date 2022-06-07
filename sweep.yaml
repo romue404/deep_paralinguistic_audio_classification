@@ -43,7 +43,7 @@ parameters:
   crop_scale:
     values: [0.1, 0.25, 0.4]
   mixup_alpha:
-    values: [0.1, 0.2, 0.4, 0.4]
+    values: [0.1, 0.2, 0.3, 0.4]
   num_patchmerges:
       values: [2, 4, 8]
   drloc_alpha:
