@@ -1,7 +1,7 @@
 model:
-  patch_h: 32
+  patch_h: 64
   patch_w: 4
-  v_stride: 16
+  v_stride: 32
   h_stride: 2
   use_spec_pos_emb: True
   lr: 0.0005
@@ -18,7 +18,6 @@ model:
   freq_mask_param: 4
   label_smoothing: 0.0
   num_mem_kv: 32
-  num_warmup_epochs: 15
   prob_crop: 0.75
   crop_scale: 0.25
   mixup_alpha: 0.3

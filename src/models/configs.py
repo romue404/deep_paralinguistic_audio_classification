@@ -23,7 +23,6 @@ class ModelConfig:
     freq_mask_param: int
     label_smoothing: float
     num_mem_kv: int
-    num_warmup_epochs: int
     prob_crop: float
     crop_scale: float
     mixup_alpha: float

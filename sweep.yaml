@@ -1,18 +1,64 @@
-program: main.py
+program: src.main
+command:
+  - ${env}
+  - python3
+  - "-m"
+  - ${program}
 method: bayes
 metric:
-  name: mic_f1
-  goal: minimize
+  name: uar
+  goal: maximize
+early_terminate:
+  type: hyperband
+  min_iter: 5
 parameters:
   lr:
-    min: 0.0001
-    max: 0.1
+    min: 0.00001
+    max: 0.001
   weight_decay:
-    min: 0.0001
-    max: 0.1
-  dropout:
-    min: 0.01
-    max: 0.8
+    min: 0.000005
+    max: 0.05
+  emb_dropout:
+    values: [0, 0.1, 0.2, 0.3, 0.4]
+  attn_dropout:
+    values: [0, 0.1, 0.2, 0.3, 0.4]
+  ff_dropout:
+    values: [0, 0.1, 0.2, 0.3, 0.4]
   mask_prob:
-    min: 0.01
-    max: 0.8
+    values: [0, 0.1, 0.2, 0.3, 0.4]
+  freq_mask_param:
+    values: [8, 16, 32]
+  hidden_size:
+    values: [64, 128, 256, 384]
+  num_layers:
+    values: [4, 8, 6, 10]
+  num_heads:
+    values: [2, 4, 6]
+  ff_mult:
+    values: [2, 4]
+  num_mem_kv:
+    values: [0, 16, 32, 64]
+  prob_crop:
+    values: [0.25, 0.5, 0.75, 1.0]
+  crop_scale:
+    values: [0.1, 0.25, 0.4]
+  mixup_alpha:
+    values: [0.1, 0.2, 0.4, 0.4]
+  num_patchmerges:
+      values: [2, 4, 8]
+  drloc_alpha:
+    values: [0.1, 0.5, 1.0]
+  drloc_m:
+    values: [16, 32, 64, 128]
+  use_spec_pos_emb:
+    values: [ True, False ]
+  use_normalized_linear:
+    values: [ True, False ]
+  use_attn_hack:
+    values: [ True, False ]
+  pooling_type:
+    values: [ "both", "fixed", "learned" ]
+  norm:
+    values: [ "rezero", "layernorm", "scalenorm" ]
+  ff:
+    values: [ "relu_squared", "gated_glu", "gelu" ]

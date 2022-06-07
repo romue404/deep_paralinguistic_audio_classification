@@ -1,11 +1,11 @@
 import wandb
 from pytorch_lightning.loggers import WandbLogger
 import pytorch_lightning as pl
-from models.configs import RootConfig
-from models.dataset import RawDataset
-from modules.data_modules import SimpleSpectrogramDataModule
-from rnn_model import ClassificationTFMR
-from modules.spec_utils import (
+from src.models.configs import RootConfig
+from src.models.dataset import RawDataset
+from src.modules.data_modules import SimpleSpectrogramDataModule
+from src.rnn_model import ClassificationTFMR
+from src.modules.spec_utils import (
     RandomResizeCrop,
     PatchifySpectrogram,
     NormalizeSpectrogram,
@@ -13,7 +13,7 @@ from modules.spec_utils import (
 from torchvision.transforms import Compose, RandomApply
 from torchaudio.transforms import FrequencyMasking
 import hydra
-from utils import initialize_rng
+from src.utils import initialize_rng
 
 
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
@@ -26,12 +26,12 @@ def train(cfg: RootConfig):
     config_defaults = dict(**cfg.model)
 
     wandb_logger = WandbLogger(
-        entity="mdsg", project="compare-22", config=config_defaults, log_model=True
+        entity="mdsg", project="compare-22", config=config_defaults, log_model=False
     )
 
     # use config ant NOT cfg - cfg is only for defaults!
     config = wandb.config
-    print(config)
+
     patchify = PatchifySpectrogram(config.patch_h,
                                    config.patch_w,
                                    config.v_stride,
@@ -77,7 +77,8 @@ def train(cfg: RootConfig):
         num_classes=num_classes,
         input_dim=config.patch_h * config.patch_w,
         num_freq_patches=int(((128 - config.patch_h) / config.v_stride) + 1),
-        **config,
+        num_warmup_epochs=int(0.1*cfg.run.max_epochs),
+        **config
     )
 
     trainer = pl.Trainer(
@@ -85,13 +86,13 @@ def train(cfg: RootConfig):
         auto_select_gpus=True,
         max_epochs=cfg.run.max_epochs,
         logger=wandb_logger,
-        check_val_every_n_epoch=5,
-        log_every_n_steps=1,
+        check_val_every_n_epoch=2,
+        log_every_n_steps=2
     )
 
     wandb_logger.watch(model, log="all")
     trainer.fit(model, data_module)
-    trainer.test(model, data_module)
+    #trainer.test(model, data_module)
 
 
 if __name__ == "__main__":

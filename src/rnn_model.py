@@ -5,15 +5,15 @@ import torch.optim as optim
 from torch.nn.utils.rnn import pad_packed_sequence
 import pytorch_lightning as pl
 import torchmetrics as metrics
-from modules.hybrid_pooling import HybridPooler
-from modules.transformer import (
+from src.modules.hybrid_pooling import HybridPooler
+from src.modules.transformer import (
     MySpecTf,
     MyEncoder,
     MySpecTfMsmEncoder,
     MySpecTfMsmDecoder,
 )
-from modules.spec_utils import SpecMixup, SpecDrloc
-from utils import NormalizedLinear, exclude_from_wt_decay
+from src.modules.spec_utils import SpecMixup, SpecDrloc
+from src.utils import NormalizedLinear, exclude_from_wt_decay
 
 
 class MySpecTFMR(pl.LightningModule):
@@ -58,7 +58,7 @@ class MySpecTFMR(pl.LightningModule):
 
         ff_dict = {'relu_squared': {'ff_relu_squared': True},
                    'gated_glu':          {'ff_swish': True, 'ff_glu': True},
-                   'glu': {}
+                   'gelu': {}
                    }
         norm_dict = {'scalenorm': {'use_scalenorm': True},
                      'rmsnorm'  : {'use_rmsnorm':   True},
@@ -175,7 +175,7 @@ class MySpecTFMR(pl.LightningModule):
 class ClassificationTFMR(MySpecTFMR):
     def __init__(self, *args, num_classes, drloc_time_patches,
                  use_normalized_linear, pooling_type,
-                 num_patchmerges, drloc_m, drloc_alpha=0.1, mixup_alpha, **kwargs):
+                 num_patchmerges, drloc_m, drloc_alpha, mixup_alpha, **kwargs):
         super(ClassificationTFMR, self).__init__(*args, mode="clf", **kwargs)
         self.micro_f1 = metrics.classification.f_beta.F1Score(
             compute_on_step=False,
@@ -239,6 +239,7 @@ class ClassificationTFMR(MySpecTFMR):
         pooled, labels, _, _ = self.forward(data, labels)
         logits = self.clf(pooled)
         predictions = logits.argmax(-1)
+
         self.micro_f1(predictions, labels)
         self.macro_f1(predictions, labels)
         self.uar(predictions, labels)

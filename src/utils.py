@@ -66,11 +66,11 @@ def exclude_from_wt_decay(named_params, weight_decay, skip_list):
         if not param.requires_grad:
             continue
         if ".g" in name:
-            print(f"skipped ReZero param {name}")
+            #print(f"skipped ReZero param {name}")
             excluded_params.append(param)
         elif any(layer_name in name for layer_name in skip_list):
             excluded_params.append(param)
-            print(f"skipped param {name}")
+            #print(f"skipped param {name}")
         else:
             params.append(param)
     return [
