@@ -6,7 +6,7 @@ command:
   - ${program}
 method: bayes
 metric:
-  name: uar
+  name: "uar.max"
   goal: maximize
 early_terminate:
   type: hyperband
