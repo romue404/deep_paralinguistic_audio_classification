@@ -4,26 +4,26 @@ model:
   v_stride: 32
   h_stride: 2
   use_spec_pos_emb: True
-  lr: 0.0005
-  weight_decay: 0.05
-  hidden_size: 128
-  num_layers: 6
-  num_heads: 4
-  ff_mult: 4
+  lr: 0.00064
+  weight_decay: 0.019
+  hidden_size: 384
+  num_layers: 4
+  num_heads: 2
+  ff_mult: 2
   use_attn_hack: True
   mask_prob: 0.1
   emb_dropout: 0.1
-  attn_dropout: 0.1
-  ff_dropout: 0.1
+  attn_dropout: 0.3
+  ff_dropout: 0.2
   freq_mask_param: 0
   label_smoothing: 0.0
-  num_mem_kv: 32
-  prob_crop: 0.75
+  num_mem_kv: 16
+  prob_crop: 0.5
   crop_scale: 0.25
-  mixup_alpha: 0.3
-  drloc_alpha: 0.5
-  drloc_m: 16
-  drloc_time_patches: 138
+  mixup_alpha: 0.2
+  drloc_alpha: 0.1
+  drloc_m: 128
+  drloc_time_patches: 150
   use_normalized_linear: True
   num_patchmerges: 2
   pooling_type: "both"
@@ -35,5 +35,5 @@ run:
   max_epochs: 300
 
 dataset:
-  dir: "/mnt/robert/datasets/compare22-KSF"
+  dir: "/mnt/robert/datasets/compare22-VOC-C"
   sr: 16000

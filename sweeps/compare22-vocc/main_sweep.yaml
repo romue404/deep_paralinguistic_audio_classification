@@ -1,0 +1,62 @@
+program: src.main
+command:
+  - ${env}
+  - python3
+  - "-m"
+  - ${program}
+method: bayes
+metric:
+  name: "uar.max"
+  goal: maximize
+early_terminate:
+  type: hyperband
+  min_iter: 5
+parameters:
+  lr:
+    min: 0.0001
+    max: 0.001
+  weight_decay:
+    min: 0.005
+    max: 0.05
+  emb_dropout:
+    values: [0.0, 0.1, 0.2]
+  attn_dropout:
+    values: [0.0, 0.1, 0.3, 0.4]
+  ff_dropout:
+    values: [0.2, 0.4]
+  mask_prob:
+    values: [0.1, 0.2]
+  freq_mask_param:
+    values: [0, 8]
+  hidden_size:
+    values: [384, 512]
+  num_layers:
+    values: [4, 6]
+  num_heads:
+    values: [2, 4]
+  ff_mult:
+    values: [2, 4]
+  num_mem_kv:
+    values: [16, 64]
+  prob_crop:
+    values: [0.5, 1.0]
+  crop_scale:
+    values: [0.1, 0.25]
+  mixup_alpha:
+    values: [0.2, 0.4]
+  num_patchmerges:
+      values: [2, 8]
+  drloc_alpha:
+    values: [0.1, 0.5, 1.0]
+  drloc_m:
+    values: [32, 128]
+  use_normalized_linear:
+    values: [ True, False ]
+  use_attn_hack:
+    values: [ True, False ]
+  pooling_type:
+    values: [ "both", "fixed"]
+  norm:
+    values: [ "rezero", "rmsnorm"]
+  ff:
+    value: "gated_glu"

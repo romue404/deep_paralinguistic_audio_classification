@@ -2,6 +2,7 @@ import math
 import torch
 import torch.nn as nn
 
+
 class PatchyfiedSpecPosEmbs(nn.Module):
     def __init__(self, n_freq_patches, dim):
         super().__init__()

@@ -16,9 +16,9 @@ import hydra
 from src.utils import initialize_rng
 
 
-@hydra.main(version_base=None, config_path="../configs", config_name="config")
-def train(cfg: RootConfig):
-    initialize_rng(cfg.run.seed)
+
+def train(cfg, seed):
+    initialize_rng(seed)
 
     ds = RawDataset(cfg.dataset.dir, cfg.dataset.sr)
 
@@ -26,7 +26,7 @@ def train(cfg: RootConfig):
     config_defaults = dict(**cfg.model)
 
     wandb_logger = WandbLogger(
-        entity="mdsg", project="test-compare-22", config=config_defaults, log_model=False
+        entity="mdsg", project="test-compare-22", config=config_defaults, log_model=False, reinit=True
     )
 
     wandb.define_metric("uar", summary="max")
@@ -94,7 +94,14 @@ def train(cfg: RootConfig):
     wandb_logger.watch(model, log="all")
     trainer.fit(model, data_module)
     #trainer.test(model, data_module)
+    wandb_logger.experiment.finish()
 
+
+@hydra.main(version_base=None, config_path="../configs", config_name="config")
+def init_training(cfg: RootConfig):
+    for seed in [1337]:
+        train(cfg, seed)
 
 if __name__ == "__main__":
-    train()
+    init_training()
+    #train(cfg, seed)
