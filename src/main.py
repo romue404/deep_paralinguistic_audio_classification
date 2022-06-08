@@ -3,7 +3,7 @@ from pytorch_lightning.loggers import WandbLogger
 import pytorch_lightning as pl
 from src.models.configs import RootConfig
 from src.models.dataset import RawDataset
-from src.modules.data_modules import SimpleSpectrogramDataModule
+from src.modules.data_modules import SimpleSpectrogramDataModule, BalancedSimpleSpectrogramDataModule
 from src.rnn_model import ClassificationTFMR
 from src.modules.spec_utils import (
     RandomResizeCrop,
@@ -62,7 +62,7 @@ def train(cfg, seed):
         ]
     )
 
-    data_module = SimpleSpectrogramDataModule(
+    data_module = BalancedSimpleSpectrogramDataModule(
         specs_path=ds.specs_path,
         name2class=ds.name2class,
         label_csv=ds.full_csv,
