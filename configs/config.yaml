@@ -4,24 +4,24 @@ model:
   v_stride: 32
   h_stride: 2
   use_spec_pos_emb: True
-  lr: 0.0005
-  weight_decay: 0.05
-  hidden_size: 128
+  lr: 0.00048
+  weight_decay: 0.044
+  hidden_size: 384
   num_layers: 6
   num_heads: 4
   ff_mult: 4
   use_attn_hack: True
   mask_prob: 0.1
-  emb_dropout: 0.1
+  emb_dropout: 0.0
   attn_dropout: 0.1
   ff_dropout: 0.1
-  freq_mask_param: 0
+  freq_mask_param: 0.0
   label_smoothing: 0.0
-  num_mem_kv: 32
+  num_mem_kv: 16
   prob_crop: 0.75
-  crop_scale: 0.25
-  mixup_alpha: 0.3
-  drloc_alpha: 0.5
+  crop_scale: 0.1
+  mixup_alpha: 0.4
+  drloc_alpha: 1.0
   drloc_m: 16
   drloc_time_patches: 138
   use_normalized_linear: True
