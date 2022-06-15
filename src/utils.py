@@ -4,6 +4,7 @@ import torch
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
+from pytorch_lightning.utilities.seed import seed_everything
 from copy import deepcopy
 
 
@@ -66,11 +67,11 @@ def exclude_from_wt_decay(named_params, weight_decay, skip_list):
         if not param.requires_grad:
             continue
         if ".g" in name:
-            #print(f"skipped ReZero param {name}")
+            # print(f"skipped ReZero param {name}")
             excluded_params.append(param)
         elif any(layer_name in name for layer_name in skip_list):
             excluded_params.append(param)
-            #print(f"skipped param {name}")
+            # print(f"skipped param {name}")
         else:
             params.append(param)
     return [
@@ -81,10 +82,13 @@ def exclude_from_wt_decay(named_params, weight_decay, skip_list):
 
 def initialize_rng(seed_value: int):
     """seed everything"""
+    gen = torch.Generator()
+    gen.manual_seed(seed_value)
     random.seed(seed_value)
     np.random.seed(seed_value)
     torch.manual_seed(seed_value)
     environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
     torch.cuda.manual_seed_all(seed_value)
     torch.use_deterministic_algorithms(True)
-    return np.random.default_rng(seed_value)
+    seed_everything(seed_value, workers=True)
+    return gen

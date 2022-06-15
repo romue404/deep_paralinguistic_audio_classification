@@ -3,7 +3,7 @@ from pytorch_lightning.loggers import WandbLogger
 import pytorch_lightning as pl
 from src.models.configs import RootConfig
 from src.models.dataset import RawDataset
-from src.modules.data_modules import SimpleSpectrogramDataModule, BalancedSimpleSpectrogramDataModule
+from src.modules.data_modules import BalancedSimpleSpectrogramDataModule
 from src.rnn_model import ClassificationTFMR
 from src.modules.spec_utils import (
     RandomResizeCrop,
@@ -16,27 +16,31 @@ import hydra
 from src.utils import initialize_rng
 
 
-
 def train(cfg, seed):
-    initialize_rng(seed)
+    gen = initialize_rng(seed)
 
     ds = RawDataset(cfg.dataset.dir, cfg.dataset.sr)
 
-    num_classes = len(ds.classes) - 1  # remove ? label from testset TODO remove -1 when training on primates!!!
+    num_classes = (
+        len(ds.classes) - 1
+    )  # remove ? label from testset TODO remove -1 when training on primates!!!
     config_defaults = dict(**cfg.model)
 
     wandb_logger = WandbLogger(
-        entity="mdsg", project="test-compare-22", config=config_defaults, log_model=False, reinit=True
+        entity="mdsg",
+        project="test-compare-22",
+        config=config_defaults,
+        log_model=False,
+        reinit=True,
     )
 
     wandb.define_metric("uar", summary="max")
     # use config ant NOT cfg - cfg is only for defaults!
     config = wandb.config
 
-    patchify = PatchifySpectrogram(config.patch_h,
-                                   config.patch_w,
-                                   config.v_stride,
-                                   config.h_stride)
+    patchify = PatchifySpectrogram(
+        config.patch_h, config.patch_w, config.v_stride, config.h_stride
+    )
 
     train_tfms = Compose(
         [
@@ -55,12 +59,7 @@ def train(cfg, seed):
             patchify,
         ]
     )
-    test_tfms = Compose(
-        [
-            NormalizeSpectrogram(),
-            patchify
-        ]
-    )
+    test_tfms = Compose([NormalizeSpectrogram(), patchify])
 
     data_module = BalancedSimpleSpectrogramDataModule(
         specs_path=ds.specs_path,
@@ -78,7 +77,7 @@ def train(cfg, seed):
         num_classes=num_classes,
         input_dim=config.patch_h * config.patch_w,
         num_freq_patches=int(((128 - config.patch_h) / config.v_stride) + 1),
-        num_warmup_epochs=int(0.1*cfg.run.max_epochs),
+        num_warmup_epochs=int(0.1 * cfg.run.max_epochs),
         **config
     )
 
@@ -88,12 +87,12 @@ def train(cfg, seed):
         max_epochs=cfg.run.max_epochs,
         logger=wandb_logger,
         check_val_every_n_epoch=2,
-        log_every_n_steps=2
+        log_every_n_steps=2,
     )
 
     wandb_logger.watch(model, log="all")
     trainer.fit(model, data_module)
-    #trainer.test(model, data_module)
+    # trainer.test(model, data_module)
     wandb_logger.experiment.finish()
 
 
@@ -102,6 +101,7 @@ def init_training(cfg: RootConfig):
     for seed in [1337]:
         train(cfg, seed)
 
+
 if __name__ == "__main__":
     init_training()
-    #train(cfg, seed)
+    # train(cfg, seed)
