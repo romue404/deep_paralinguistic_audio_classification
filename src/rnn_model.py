@@ -179,7 +179,7 @@ class ClassificationTFMR(MySpecTFMR):
     def __init__(
         self,
         *args,
-        num_classes,
+        classes,
         drloc_time_patches,
         use_normalized_linear,
         pooling_type,
@@ -190,6 +190,8 @@ class ClassificationTFMR(MySpecTFMR):
         **kwargs,
     ):
         super(ClassificationTFMR, self).__init__(*args, mode="clf", **kwargs)
+        self.classes = classes
+        num_classes = len(classes)
         self.micro_f1 = metrics.classification.f_beta.F1Score(
             compute_on_step=False,
             num_classes=num_classes,
@@ -257,22 +259,29 @@ class ClassificationTFMR(MySpecTFMR):
         self.uar(predictions, labels)
         self.confusion(predictions, labels)
 
+        return predictions.cpu(), labels.cpu()
+
     def validation_epoch_end(self, outs):
         self.log("mic_f1", self.micro_f1.compute())
         self.log("mac_f1", self.macro_f1.compute())
         self.log("uar", self.uar.compute())
 
-        confusion = self.confusion.compute()
-        preds = confusion[0]
-        targets = confusion[1]
-        self.log(
-            "conf_mat",
-            wandb.plot.confusion_matrix(
-                probs=None,
-                y_true=targets,
-                preds=preds,
-                # class_names=class_names,
-            ),
+        preds = []
+        labels = []
+
+        for prediction, label in outs:
+            preds.extend(prediction.tolist())
+            labels.extend(label.tolist())
+
+        self.logger.experiment.log(
+            {
+                "conf_mat": wandb.plot.confusion_matrix(
+                    probs=None,
+                    y_true=labels,
+                    preds=preds,
+                    class_names=self.classes,
+                ),
+            }
         )
 
         # confusion_matrix = self.confusion.compute()

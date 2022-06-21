@@ -75,7 +75,7 @@ def train(cfg: RootConfig, seed: int):
     data_module.setup()
 
     model = ClassificationTFMR(
-        num_classes=num_classes,
+        classes=ds.classes,
         input_dim=config.patch_h * config.patch_w,
         num_freq_patches=int(((128 - config.patch_h) / config.v_stride) + 1),
         num_warmup_epochs=int(0.1 * cfg.run.max_epochs),
