@@ -1,6 +1,7 @@
 import math
 from pathlib import Path
 import torch
+import wandb
 import torch.nn as nn
 import torch.optim as optim
 from torch.nn.utils.rnn import pad_packed_sequence
@@ -261,11 +262,12 @@ class ClassificationTFMR(MySpecTFMR):
         self.log("mac_f1", self.macro_f1.compute())
         self.log("uar", self.uar.compute())
 
-        preds, targets = self.confusion.compute()
-
+        confusion = self.confusion.compute()
+        preds = confusion[0]
+        targets = confusion[1]
         self.log(
             "conf_mat",
-            self.logger.plot.confusion_matrix(
+            wandb.plot.confusion_matrix(
                 probs=None,
                 y_true=targets,
                 preds=preds,
