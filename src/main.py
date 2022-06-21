@@ -1,5 +1,6 @@
 import wandb
 from pytorch_lightning.loggers import WandbLogger
+from pytorch_lightning.callbacks import ModelCheckpoint
 import pytorch_lightning as pl
 from src.models.configs import RootConfig
 from src.models.dataset import RawDataset
@@ -16,8 +17,8 @@ import hydra
 from src.utils import initialize_rng
 
 
-def train(cfg, seed):
-    gen = initialize_rng(seed)
+def train(cfg: RootConfig, seed: int):
+    initialize_rng(seed)
 
     ds = RawDataset(cfg.dataset.dir, cfg.dataset.sr)
 
@@ -30,7 +31,7 @@ def train(cfg, seed):
         entity="mdsg",
         project="test-compare-22",
         config=config_defaults,
-        log_model=False,
+        log_model="all",
         reinit=True,
     )
 
@@ -81,6 +82,9 @@ def train(cfg, seed):
         **config
     )
 
+    wandb_logger.watch(model, log="all")
+    checkpoint_callback = ModelCheckpoint(monitor="uar", mode="max")
+
     trainer = pl.Trainer(
         accelerator="auto",
         auto_select_gpus=True,
@@ -88,9 +92,9 @@ def train(cfg, seed):
         logger=wandb_logger,
         check_val_every_n_epoch=2,
         log_every_n_steps=2,
+        callbacks=[checkpoint_callback],
     )
 
-    wandb_logger.watch(model, log="all")
     trainer.fit(model, data_module)
     # trainer.test(model, data_module)
     wandb_logger.experiment.finish()

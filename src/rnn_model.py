@@ -1,4 +1,5 @@
 import math
+from pathlib import Path
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -37,9 +38,9 @@ class MySpecTFMR(pl.LightningModule):
         label_smoothing=0.1,
         num_mem_kv=32,
         ff_mult=4,
-        norm='rezero',
-        ff='relu_squared',
-        **kwargs  # ignore rest
+        norm="rezero",
+        ff="relu_squared",
+        **kwargs,  # ignore rest
     ):
         super(MySpecTFMR, self).__init__()
         self.mode = mode
@@ -55,16 +56,17 @@ class MySpecTFMR(pl.LightningModule):
         self.ff_dropout = ff_dropout
         self.__mask_prob = mask_prob
 
-
-        ff_dict = {'relu_squared': {'ff_relu_squared': True},
-                   'gated_glu':          {'ff_swish': True, 'ff_glu': True},
-                   'gelu': {}
-                   }
-        norm_dict = {'scalenorm': {'use_scalenorm': True},
-                     'rmsnorm'  : {'use_rmsnorm':   True},
-                     'rezero'   : {'use_rezero':    True},
-                     'layernorm': {}
-                     }
+        ff_dict = {
+            "relu_squared": {"ff_relu_squared": True},
+            "gated_glu": {"ff_swish": True, "ff_glu": True},
+            "gelu": {},
+        }
+        norm_dict = {
+            "scalenorm": {"use_scalenorm": True},
+            "rmsnorm": {"use_rmsnorm": True},
+            "rezero": {"use_rezero": True},
+            "layernorm": {},
+        }
 
         Wrapper = MySpecTfMsmEncoder if mode == "msm" else MySpecTf
         self.transformer = Wrapper(
@@ -173,9 +175,19 @@ class MySpecTFMR(pl.LightningModule):
 
 
 class ClassificationTFMR(MySpecTFMR):
-    def __init__(self, *args, num_classes, drloc_time_patches,
-                 use_normalized_linear, pooling_type,
-                 num_patchmerges, drloc_m, drloc_alpha, mixup_alpha, **kwargs):
+    def __init__(
+        self,
+        *args,
+        num_classes,
+        drloc_time_patches,
+        use_normalized_linear,
+        pooling_type,
+        num_patchmerges,
+        drloc_m,
+        drloc_alpha,
+        mixup_alpha,
+        **kwargs,
+    ):
         super(ClassificationTFMR, self).__init__(*args, mode="clf", **kwargs)
         self.micro_f1 = metrics.classification.f_beta.F1Score(
             compute_on_step=False,
@@ -195,26 +207,25 @@ class ClassificationTFMR(MySpecTFMR):
         self.confusion = metrics.ConfusionMatrix(
             num_classes=num_classes, compute_on_step=False
         )
-        self.best_uar = 0, 0
         self.num_classes = num_classes
         self.drloc_alpha = drloc_alpha
 
         self.pooler = HybridPooler(
-            self.hidden_size,
-            num_patchmerges,
-            self.ff_dropout,
-            how=pooling_type
+            self.hidden_size, num_patchmerges, self.ff_dropout, how=pooling_type
         )
         of = self.pooler.out_features
-        self.clf = NormalizedLinear(of, self.num_classes) if use_normalized_linear \
+        self.clf = (
+            NormalizedLinear(of, self.num_classes)
+            if use_normalized_linear
             else nn.Linear(of, self.num_classes, bias=False)
-        self.criterion = nn.CrossEntropyLoss(
-            label_smoothing=self.label_smoothing
         )
+        self.criterion = nn.CrossEntropyLoss(label_smoothing=self.label_smoothing)
 
         self.mixup_alpha = mixup_alpha
         self.mixup = SpecMixup(num_classes=self.num_classes, alpha=mixup_alpha)
-        self.drloc = SpecDrloc(self.num_freq_patches, drloc_time_patches, m=drloc_m, dim=self.hidden_size)
+        self.drloc = SpecDrloc(
+            self.num_freq_patches, drloc_time_patches, m=drloc_m, dim=self.hidden_size
+        )
 
     def forward(self, data, labels):
         x_pad, lengths = pad_packed_sequence(data, batch_first=True)
@@ -246,13 +257,21 @@ class ClassificationTFMR(MySpecTFMR):
         self.confusion(predictions, labels)
 
     def validation_epoch_end(self, outs):
-        mic_f1 = self.micro_f1.compute()
-        mac_f1 = self.macro_f1.compute()
-        uar = self.uar.compute()
+        self.log("mic_f1", self.micro_f1.compute())
+        self.log("mac_f1", self.macro_f1.compute())
+        self.log("uar", self.uar.compute())
 
-        self.log("mic_f1", mic_f1)
-        self.log("mac_f1", mac_f1)
-        self.log("uar", uar)
+        preds, targets = self.confusion.compute()
+
+        self.log(
+            "conf_mat",
+            self.logger.plot.confusion_matrix(
+                probs=None,
+                y_true=targets,
+                preds=preds,
+                # class_names=class_names,
+            ),
+        )
 
         # confusion_matrix = self.confusion.compute()
         # print(f"UAR: {uar:.3f}\tMicro F1: {mic_f1:.3f}\tMacro F1: {mac_f1:.3f}")
@@ -260,8 +279,6 @@ class ClassificationTFMR(MySpecTFMR):
         self.macro_f1.reset()
         self.uar.reset()
         self.confusion.reset()
-        if self.best_uar[0] < uar:
-            self.best_uar = uar, self.current_epoch
 
     def test_step(self, *args, **kwargs):
         self.validation_step(*args, **kwargs)

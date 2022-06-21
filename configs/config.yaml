@@ -35,5 +35,5 @@ run:
   max_epochs: 300
 
 dataset:
-  dir: "/mnt/robert/datasets/compare22-KSF"
+  dir: "./datasets/compare22-KSF"
   sr: 16000
