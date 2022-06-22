@@ -1,0 +1,39 @@
+model:
+  patch_h: 64
+  patch_w: 4
+  v_stride: 32
+  h_stride: 2
+  use_spec_pos_emb: True
+  lr: 0.0002800508398539435
+  weight_decay: 0.02265302896159477
+  hidden_size: 384
+  num_layers: 6
+  num_heads: 2
+  ff_mult: 4
+  use_attn_hack: False
+  mask_prob: 0.1
+  emb_dropout: 0.1
+  attn_dropout: 0.3
+  ff_dropout: 0.2
+  freq_mask_param: 0.0
+  label_smoothing: 0.0
+  num_mem_kv: 16
+  prob_crop: 0.5
+  crop_scale: 0.1
+  mixup_alpha: 0.2
+  drloc_alpha: 1.0
+  drloc_m: 128
+  drloc_time_patches: 150
+  use_normalized_linear: False
+  num_patchmerges: 8
+  pooling_type: "fixed"
+  norm: "rmsnorm"
+  ff: "gated_glu"
+
+run:
+  seed: 1337
+  max_epochs: 600
+
+dataset:
+  dir: "./datasets/compare22-VOC-C"
+  sr: 16000

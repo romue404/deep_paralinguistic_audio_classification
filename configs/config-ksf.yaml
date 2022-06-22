@@ -1,0 +1,39 @@
+model:
+  patch_h: 64
+  patch_w: 4
+  v_stride: 32
+  h_stride: 2
+  use_spec_pos_emb: True
+  lr: 0.00011
+  weight_decay: 0.001
+  hidden_size: 384
+  num_layers: 8
+  num_heads: 2
+  ff_mult: 4
+  use_attn_hack: False
+  mask_prob: 0.0
+  emb_dropout: 0.0
+  attn_dropout: 0.1
+  ff_dropout: 0.2
+  freq_mask_param: 0.0
+  label_smoothing: 0.0
+  num_mem_kv: 16
+  prob_crop: 1.0
+  crop_scale: 0.1
+  mixup_alpha: 0.1
+  drloc_alpha: 0.1
+  drloc_m: 32
+  drloc_time_patches: 138
+  use_normalized_linear: True
+  num_patchmerges: 8
+  pooling_type: "both"
+  norm: "rezero"
+  ff: "gated_glu"
+
+run:
+  seed: 1337
+  max_epochs: 300
+
+dataset:
+  dir: "./datasets/compare22-KSF"
+  sr: 16000

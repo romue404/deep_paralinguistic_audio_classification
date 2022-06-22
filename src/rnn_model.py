@@ -2,6 +2,7 @@ import math
 from pathlib import Path
 import torch
 import wandb
+import pandas as pd
 import torch.nn as nn
 import torch.optim as optim
 from torch.nn.utils.rnn import pad_packed_sequence
@@ -190,7 +191,8 @@ class ClassificationTFMR(MySpecTFMR):
         **kwargs,
     ):
         super(ClassificationTFMR, self).__init__(*args, mode="clf", **kwargs)
-        self.classes = classes
+        self.save_hyperparameters()
+        self.classes = classes[1:]
         num_classes = len(classes)
         self.micro_f1 = metrics.classification.f_beta.F1Score(
             compute_on_step=False,
@@ -291,8 +293,26 @@ class ClassificationTFMR(MySpecTFMR):
         self.uar.reset()
         self.confusion.reset()
 
-    def test_step(self, *args, **kwargs):
-        self.validation_step(*args, **kwargs)
+    def test_step(self, batch, *args, **kwargs):
+        data, _, paths = batch
+        pooled, _, _, _ = self.forward(data, None)
+        logits = self.clf(pooled)
+        predictions = logits.argmax(-1)
+
+        # preds_i = predictions.cpu().tolist()
+        # preds_n = [self.classes[x] for x in preds_i]
+
+        # self.log("")
+
+        return predictions, paths
 
     def test_epoch_end(self, outputs):
-        self.validation_epoch_end(outputs)
+        predictions = torch.cat([x for x, _ in outputs], dim=0).cpu().tolist()
+        mapped_preds = [self.classes[x] for x in predictions]
+        paths = [f"{p}.wav" for p in sum([x for _, x in outputs], [])]
+
+        output = {"filename": paths, "prediction": mapped_preds}
+        df = pd.DataFrame(output)
+        filepath = Path('results/out.csv')  
+        filepath.parent.mkdir(parents=True, exist_ok=True)  
+        df.to_csv(filepath, index=False)  

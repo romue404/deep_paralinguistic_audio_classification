@@ -133,3 +133,7 @@ wandb/
 compare-22/
 outputs/
 audio/
+test-compare-22/
+compare-22/
+logs/
+checkpoints/
